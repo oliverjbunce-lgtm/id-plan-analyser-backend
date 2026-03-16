@@ -2,12 +2,13 @@
 Independent Doors — Plan Analyser API
 FastAPI backend: PDF upload, page thumbnail generation, YOLOv8 inference
 """
-import os, uuid, shutil, base64
+import os, uuid, shutil, base64, io
 from contextlib import asynccontextmanager
 from pathlib import Path
 from collections import Counter
 from typing import Optional
 
+import cv2
 import fitz  # PyMuPDF
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +17,6 @@ from ultralytics import YOLO
 # ── Config ────────────────────────────────────────────────────────────────────
 MODEL_PATH = os.getenv("MODEL_PATH", "model/best.pt")
 UPLOAD_DIR = Path("/tmp/id-uploads")
-RESULTS_DIR = Path("/tmp/id-results")
 THUMB_DIR = Path("/tmp/id-thumbs")
 THUMB_DPI = 72        # low-res for page picker
 INFER_DPI = 150       # resolution for model inference
@@ -29,7 +29,7 @@ CLASSES = [
     "Barn_wall_slider", "D_bi_folding_door", "Wardrobe_sliding_three_doors",
 ]
 
-for d in [UPLOAD_DIR, RESULTS_DIR, THUMB_DIR]:
+for d in [UPLOAD_DIR, THUMB_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -153,19 +153,8 @@ async def analyse_plan(
     pix.save(str(png_path))
     doc.close()
 
-    # Run inference
-    result_dir = RESULTS_DIR / session_id
-    result_dir.mkdir(exist_ok=True)
-
-    results = model(
-        str(png_path),
-        imgsz=1024,
-        conf=0.25,
-        save=True,
-        project=str(result_dir),
-        name="out",
-        exist_ok=True,
-    )
+    # Run inference (no file saving — encode annotated image in memory)
+    results = model(str(png_path), imgsz=1024, conf=0.25)
     r = results[0]
 
     # Parse detections
@@ -179,10 +168,12 @@ async def analyse_plan(
         for cls, cnt in sorted(class_counts.items(), key=lambda x: -x[1])
     ]
 
-    # Read annotated image and encode as base64
-    annotated_path = result_dir / "out" / png_path.name
-    with open(annotated_path, "rb") as img_file:
-        image_b64 = base64.b64encode(img_file.read()).decode()
+    # Get annotated image directly from YOLO result (BGR numpy array → PNG bytes → base64)
+    annotated_bgr = r.plot()
+    success, buffer = cv2.imencode(".png", annotated_bgr)
+    if not success:
+        raise HTTPException(500, "Failed to encode annotated image.")
+    image_b64 = base64.b64encode(buffer.tobytes()).decode()
 
     return {
         "session_id": session_id,
