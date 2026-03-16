@@ -3,6 +3,7 @@ Independent Doors — Plan Analyser API
 FastAPI backend: PDF upload, page thumbnail generation, YOLOv8 inference
 """
 import os, uuid, shutil
+from contextlib import asynccontextmanager
 from pathlib import Path
 from collections import Counter
 from typing import Optional
@@ -33,7 +34,21 @@ for d in [UPLOAD_DIR, RESULTS_DIR, THUMB_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # ── App ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="ID Plan Analyser", version="1.0.0")
+model: Optional[YOLO] = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global model
+    if Path(MODEL_PATH).exists():
+        print(f"Loading model from {MODEL_PATH}…")
+        model = YOLO(MODEL_PATH)
+        print("Model ready ✓")
+    else:
+        print(f"⚠️  Model not found at {MODEL_PATH} — inference will fail")
+    yield  # app runs here
+    model = None
+
+app = FastAPI(title="ID Plan Analyser", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,19 +58,6 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="/tmp"), name="static")
-
-# Load model once at startup
-model: Optional[YOLO] = None
-
-@app.on_event("startup")
-async def load_model():
-    global model
-    if Path(MODEL_PATH).exists():
-        print(f"Loading model from {MODEL_PATH}…")
-        model = YOLO(MODEL_PATH)
-        print("Model ready ✓")
-    else:
-        print(f"⚠️  Model not found at {MODEL_PATH} — inference will fail")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
