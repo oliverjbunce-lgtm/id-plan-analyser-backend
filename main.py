@@ -82,6 +82,10 @@ def pdf_to_thumb_b64(page: fitz.Page, dpi: int = 72) -> str:
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": model is not None}
