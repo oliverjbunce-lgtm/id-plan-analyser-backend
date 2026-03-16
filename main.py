@@ -12,12 +12,14 @@ import cv2
 import fitz  # PyMuPDF
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from ultralytics import YOLO
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MODEL_PATH = os.getenv("MODEL_PATH", "model/best.pt")
 UPLOAD_DIR = Path("/tmp/id-uploads")
 THUMB_DIR = Path("/tmp/id-thumbs")
+TRAINING_DIR = Path("/tmp/id-training")
 THUMB_DPI = 72        # low-res for page picker
 INFER_DPI = 150       # resolution for model inference
 
@@ -29,8 +31,21 @@ CLASSES = [
     "Barn_wall_slider", "D_bi_folding_door", "Wardrobe_sliding_three_doors",
 ]
 
-for d in [UPLOAD_DIR, THUMB_DIR]:
+for d in [UPLOAD_DIR, THUMB_DIR, TRAINING_DIR / "images", TRAINING_DIR / "labels"]:
     d.mkdir(parents=True, exist_ok=True)
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
+class CorrectedBox(BaseModel):
+    class_id: int
+    x_center: float
+    y_center: float
+    width: float
+    height: float
+
+class FeedbackPayload(BaseModel):
+    session_id: str
+    image_b64: str  # raw base64, no data: prefix
+    boxes: list[CorrectedBox]
 
 # ── App ───────────────────────────────────────────────────────────────────────
 model: Optional[YOLO] = None
@@ -79,6 +94,20 @@ def pdf_to_thumb_b64(page: fitz.Page, dpi: int = 72) -> str:
     mat = fitz.Matrix(dpi / 72, dpi / 72)
     pix = page.get_pixmap(matrix=mat)
     return base64.b64encode(pix.tobytes("jpeg")).decode()
+
+
+def read_training_count() -> int:
+    count_file = TRAINING_DIR / "count.txt"
+    if count_file.exists():
+        try:
+            return int(count_file.read_text().strip())
+        except ValueError:
+            return 0
+    return 0
+
+
+def write_training_count(count: int):
+    (TRAINING_DIR / "count.txt").write_text(str(count))
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -135,7 +164,7 @@ async def analyse_plan(
 ):
     """
     Run YOLOv8 inference on a specific page of the uploaded PDF.
-    Returns annotated image URL and detection counts.
+    Returns annotated image URL, detection counts, and raw bounding boxes.
     """
     if model is None:
         raise HTTPException(503, "Model not loaded.")
@@ -153,6 +182,8 @@ async def analyse_plan(
     # Render page at inference resolution
     mat = fitz.Matrix(INFER_DPI / 72, INFER_DPI / 72)
     pix = doc[page - 1].get_pixmap(matrix=mat)
+    image_width = pix.width
+    image_height = pix.height
     png_path = UPLOAD_DIR / f"{session_id}-p{page}.png"
     pix.save(str(png_path))
     doc.close()
@@ -172,6 +203,25 @@ async def analyse_plan(
         for cls, cnt in sorted(class_counts.items(), key=lambda x: -x[1])
     ]
 
+    # Extract normalized bounding boxes (xyxyn = x1,y1,x2,y2 normalized 0-1)
+    boxes = []
+    if r.boxes is not None:
+        xyxyn = r.boxes.xyxyn.tolist()
+        cls_ids = r.boxes.cls.tolist()
+        confs = r.boxes.conf.tolist()
+        for i, (coords, cls_id, conf) in enumerate(zip(xyxyn, cls_ids, confs)):
+            x1, y1, x2, y2 = coords
+            boxes.append({
+                "id": i,
+                "class": CLASSES[int(cls_id)],
+                "class_id": int(cls_id),
+                "confidence": round(float(conf), 4),
+                "x1": round(float(x1), 6),
+                "y1": round(float(y1), 6),
+                "x2": round(float(x2), 6),
+                "y2": round(float(y2), 6),
+            })
+
     # Get annotated image directly from YOLO result (BGR numpy array → PNG bytes → base64)
     annotated_bgr = r.plot()
     success, buffer = cv2.imencode(".png", annotated_bgr)
@@ -185,4 +235,42 @@ async def analyse_plan(
         "total": sum(class_counts.values()),
         "detections": detections,
         "image_b64": f"data:image/png;base64,{image_b64}",
+        "boxes": boxes,
+        "image_width": image_width,
+        "image_height": image_height,
     }
+
+
+@app.post("/feedback")
+async def feedback(payload: FeedbackPayload):
+    """
+    Accept corrected bounding boxes and save as YOLO training data.
+    Saves the image and label file, increments training sample counter.
+    """
+    # Sanitise session_id to prevent path traversal
+    safe_id = "".join(c for c in payload.session_id if c.isalnum() or c in "-_")
+    if not safe_id:
+        raise HTTPException(400, "Invalid session_id.")
+
+    # Decode and save image
+    try:
+        image_bytes = base64.b64decode(payload.image_b64)
+    except Exception:
+        raise HTTPException(400, "Invalid base64 image data.")
+
+    img_path = TRAINING_DIR / "images" / f"{safe_id}.png"
+    img_path.write_bytes(image_bytes)
+
+    # Write YOLO label file
+    label_path = TRAINING_DIR / "labels" / f"{safe_id}.txt"
+    lines = [
+        f"{box.class_id} {box.x_center:.6f} {box.y_center:.6f} {box.width:.6f} {box.height:.6f}"
+        for box in payload.boxes
+    ]
+    label_path.write_text("\n".join(lines))
+
+    # Increment counter
+    count = read_training_count() + 1
+    write_training_count(count)
+
+    return {"saved": True, "total_training_samples": count}
