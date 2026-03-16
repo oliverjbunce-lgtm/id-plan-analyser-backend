@@ -2,7 +2,7 @@
 Independent Doors — Plan Analyser API
 FastAPI backend: PDF upload, page thumbnail generation, YOLOv8 inference
 """
-import os, uuid, shutil
+import os, uuid, shutil, base64
 from contextlib import asynccontextmanager
 from pathlib import Path
 from collections import Counter
@@ -11,7 +11,6 @@ from typing import Optional
 import fitz  # PyMuPDF
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from ultralytics import YOLO
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -57,8 +56,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/static", StaticFiles(directory="/tmp"), name="static")
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def suggest_floor_plan_page(doc: fitz.Document) -> int:
@@ -78,10 +75,10 @@ def suggest_floor_plan_page(doc: fitz.Document) -> int:
     return best + 1  # 1-indexed
 
 
-def pdf_to_thumb(page: fitz.Page, out_path: Path, dpi: int = 72):
+def pdf_to_thumb_b64(page: fitz.Page, dpi: int = 72) -> str:
     mat = fitz.Matrix(dpi / 72, dpi / 72)
     pix = page.get_pixmap(matrix=mat)
-    pix.save(str(out_path))
+    return base64.b64encode(pix.tobytes("jpeg")).decode()
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -109,15 +106,11 @@ async def upload_pdf(file: UploadFile = File(...)):
     page_count = doc.page_count
     pages = []
 
-    thumb_session_dir = THUMB_DIR / session_id
-    thumb_session_dir.mkdir(exist_ok=True)
-
     for i in range(min(page_count, 30)):  # cap at 30 pages for speed
-        thumb_path = thumb_session_dir / f"page-{i+1}.jpg"
-        pdf_to_thumb(doc[i], thumb_path, dpi=THUMB_DPI)
+        b64 = pdf_to_thumb_b64(doc[i], dpi=THUMB_DPI)
         pages.append({
             "page": i + 1,
-            "url": f"/static/id-thumbs/{session_id}/page-{i+1}.jpg"
+            "url": f"data:image/jpeg;base64,{b64}"
         })
 
     suggested = suggest_floor_plan_page(doc)
@@ -186,14 +179,15 @@ async def analyse_plan(
         for cls, cnt in sorted(class_counts.items(), key=lambda x: -x[1])
     ]
 
-    # Annotated image path
+    # Read annotated image and encode as base64
     annotated_path = result_dir / "out" / png_path.name
-    image_url = f"/static/id-results/{session_id}/out/{png_path.name}"
+    with open(annotated_path, "rb") as img_file:
+        image_b64 = base64.b64encode(img_file.read()).decode()
 
     return {
         "session_id": session_id,
         "page_used": page,
         "total": sum(class_counts.values()),
         "detections": detections,
-        "image_url": image_url,
+        "image_b64": f"data:image/png;base64,{image_b64}",
     }
