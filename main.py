@@ -8,7 +8,6 @@ from pathlib import Path
 from collections import Counter
 from typing import Optional
 
-import cv2
 import fitz  # PyMuPDF
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -222,12 +221,10 @@ async def analyse_plan(
                 "y2": round(float(y2), 6),
             })
 
-    # Get annotated image directly from YOLO result (BGR numpy array → PNG bytes → base64)
-    annotated_bgr = r.plot()
-    success, buffer = cv2.imencode(".png", annotated_bgr)
-    if not success:
-        raise HTTPException(500, "Failed to encode annotated image.")
-    image_b64 = base64.b64encode(buffer.tobytes()).decode()
+    # Return the clean rendered page image — the frontend draws its own
+    # interactive boxes via Konva, so we must NOT bake the model's annotations
+    # into the image (they would be uneditable and overlap the interactive layer).
+    image_b64 = base64.b64encode(png_path.read_bytes()).decode()
 
     return {
         "session_id": session_id,
