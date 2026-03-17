@@ -9,13 +9,16 @@ from collections import Counter
 from typing import Optional
 
 import fitz  # PyMuPDF
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from huggingface_hub import HfApi, CommitOperationAdd
 from pydantic import BaseModel
 from ultralytics import YOLO
 
 # ── Config ────────────────────────────────────────────────────────────────────
 MODEL_PATH = os.getenv("MODEL_PATH", "model/best.pt")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+HF_DATASET_REPO = os.getenv("HF_DATASET_REPO", "oliverbunce/id-plan-analyser-training")
 UPLOAD_DIR = Path("/tmp/id-uploads")
 THUMB_DIR = Path("/tmp/id-thumbs")
 TRAINING_DIR = Path("/tmp/id-training")
@@ -107,6 +110,37 @@ def read_training_count() -> int:
 
 def write_training_count(count: int):
     (TRAINING_DIR / "count.txt").write_text(str(count))
+
+
+def push_to_dataset(session_id: str, image_bytes: bytes, label_text: str):
+    """
+    Commit one training sample (image + YOLO label) to the HF dataset repo.
+    Runs in a background task — failures are logged but don't affect the response.
+    """
+    if not HF_TOKEN:
+        print("⚠️  HF_TOKEN not set — skipping dataset push")
+        return
+    try:
+        api = HfApi(token=HF_TOKEN)
+        api.create_repo(HF_DATASET_REPO, repo_type="dataset", exist_ok=True, private=True)
+        api.create_commit(
+            repo_id=HF_DATASET_REPO,
+            repo_type="dataset",
+            commit_message=f"training: add sample {session_id[:8]}",
+            operations=[
+                CommitOperationAdd(
+                    path_in_repo=f"data/images/{session_id}.png",
+                    path_or_fileobj=image_bytes,
+                ),
+                CommitOperationAdd(
+                    path_in_repo=f"data/labels/{session_id}.txt",
+                    path_or_fileobj=label_text.encode(),
+                ),
+            ],
+        )
+        print(f"✓ Training sample {session_id[:8]} pushed to {HF_DATASET_REPO}")
+    except Exception as exc:
+        print(f"⚠️  Failed to push training sample {session_id[:8]}: {exc}")
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -239,34 +273,33 @@ async def analyse_plan(
 
 
 @app.post("/feedback")
-async def feedback(payload: FeedbackPayload):
+async def feedback(payload: FeedbackPayload, background_tasks: BackgroundTasks):
     """
     Accept corrected bounding boxes and save as YOLO training data.
-    Saves the image and label file, increments training sample counter.
+    Saves locally (ephemeral) and pushes to the HF dataset repo (persistent).
     """
-    # Sanitise session_id to prevent path traversal
     safe_id = "".join(c for c in payload.session_id if c.isalnum() or c in "-_")
     if not safe_id:
         raise HTTPException(400, "Invalid session_id.")
 
-    # Decode and save image
     try:
         image_bytes = base64.b64decode(payload.image_b64)
     except Exception:
         raise HTTPException(400, "Invalid base64 image data.")
 
-    img_path = TRAINING_DIR / "images" / f"{safe_id}.png"
-    img_path.write_bytes(image_bytes)
+    # Save locally (best-effort; /tmp is ephemeral on HF Spaces)
+    (TRAINING_DIR / "images" / f"{safe_id}.png").write_bytes(image_bytes)
 
-    # Write YOLO label file
-    label_path = TRAINING_DIR / "labels" / f"{safe_id}.txt"
     lines = [
         f"{box.class_id} {box.x_center:.6f} {box.y_center:.6f} {box.width:.6f} {box.height:.6f}"
         for box in payload.boxes
     ]
-    label_path.write_text("\n".join(lines))
+    label_text = "\n".join(lines)
+    (TRAINING_DIR / "labels" / f"{safe_id}.txt").write_text(label_text)
 
-    # Increment counter
+    # Persist to HF dataset repo in the background (non-blocking)
+    background_tasks.add_task(push_to_dataset, safe_id, image_bytes, label_text)
+
     count = read_training_count() + 1
     write_training_count(count)
 

@@ -4,3 +4,4 @@ python-multipart==0.0.12
 PyMuPDF==1.24.14
 ultralytics==8.4.22
 opencv-python-headless==4.10.0.84
+huggingface_hub==0.26.5
