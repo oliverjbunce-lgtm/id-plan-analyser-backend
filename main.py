@@ -272,6 +272,80 @@ async def analyse_plan(
     }
 
 
+@app.post("/analyse-stored")
+async def analyse_stored(session_id: str = Form(...), page: int = Form(1)):
+    """
+    Run inference on a previously uploaded PDF without re-uploading.
+    Used for multi-page analysis — client calls this once per selected page.
+    """
+    if model is None:
+        raise HTTPException(503, "Model not loaded.")
+
+    safe_id = "".join(c for c in session_id if c.isalnum() or c in "-_")
+    pdf_path = UPLOAD_DIR / f"{safe_id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(404, "Upload session not found. Please re-upload the PDF.")
+
+    doc = fitz.open(str(pdf_path))
+    if page < 1 or page > doc.page_count:
+        raise HTTPException(400, f"Page {page} out of range (1–{doc.page_count}).")
+
+    mat = fitz.Matrix(INFER_DPI / 72, INFER_DPI / 72)
+    pix = doc[page - 1].get_pixmap(matrix=mat)
+    image_width = pix.width
+    image_height = pix.height
+
+    # Unique ID per page so training samples don't overwrite each other
+    page_session_id = f"{safe_id}-p{page}"
+    png_path = UPLOAD_DIR / f"{page_session_id}.png"
+    pix.save(str(png_path))
+    doc.close()
+
+    results = model(str(png_path), imgsz=1024, conf=0.25)
+    r = results[0]
+
+    class_counts: Counter = Counter()
+    if r.boxes is not None:
+        for cls_id in r.boxes.cls.tolist():
+            class_counts[CLASSES[int(cls_id)]] += 1
+
+    detections = [
+        {"class": cls, "count": cnt}
+        for cls, cnt in sorted(class_counts.items(), key=lambda x: -x[1])
+    ]
+
+    boxes = []
+    if r.boxes is not None:
+        xyxyn = r.boxes.xyxyn.tolist()
+        cls_ids = r.boxes.cls.tolist()
+        confs = r.boxes.conf.tolist()
+        for i, (coords, cls_id, conf) in enumerate(zip(xyxyn, cls_ids, confs)):
+            x1, y1, x2, y2 = coords
+            boxes.append({
+                "id": i,
+                "class": CLASSES[int(cls_id)],
+                "class_id": int(cls_id),
+                "confidence": round(float(conf), 4),
+                "x1": round(float(x1), 6),
+                "y1": round(float(y1), 6),
+                "x2": round(float(x2), 6),
+                "y2": round(float(y2), 6),
+            })
+
+    image_b64 = base64.b64encode(png_path.read_bytes()).decode()
+
+    return {
+        "session_id": page_session_id,
+        "page_used": page,
+        "total": sum(class_counts.values()),
+        "detections": detections,
+        "image_b64": f"data:image/png;base64,{image_b64}",
+        "boxes": boxes,
+        "image_width": image_width,
+        "image_height": image_height,
+    }
+
+
 @app.post("/feedback")
 async def feedback(payload: FeedbackPayload, background_tasks: BackgroundTasks):
     """
