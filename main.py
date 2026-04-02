@@ -153,149 +153,147 @@ def test_page():
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Model Test — ID Plan Analyser v2</title>
+<title>AI Model Test v2</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: #f5f5f7; color: #0a0a0a; min-height: 100vh; padding: 40px 24px; }
-  .container { max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 4px; }
-  .sub { color: #6b7280; font-size: 14px; margin-bottom: 32px; }
-  .badge { display: inline-flex; align-items: center; gap: 6px; background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
-  .drop-zone { border: 2px dashed #d1d5db; border-radius: 16px; background: white; padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 24px; }
-  .drop-zone:hover, .drop-zone.drag-over { border-color: #0A84FF; background: #f0f7ff; }
-  .drop-zone p { color: #6b7280; font-size: 15px; }
-  .drop-zone strong { color: #0a0a0a; }
-  .btn { background: #0A84FF; color: white; border: none; border-radius: 12px; padding: 14px 28px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; transition: background 0.2s; }
-  .btn:hover { background: #0066CC; }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  #status { margin-top: 16px; font-size: 14px; color: #6b7280; text-align: center; min-height: 20px; }
-  .results { display: none; margin-top: 32px; }
-  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  .card { background: white; border: 1px solid #e5e5e5; border-radius: 16px; padding: 20px; }
-  .card h3 { font-size: 13px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
-  .result-img { width: 100%; border-radius: 12px; border: 1px solid #e5e5e5; }
-  .detection-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
-  .detection-row:last-child { border-bottom: none; }
-  .det-name { font-size: 13px; color: #374151; }
-  .det-conf { font-size: 12px; font-weight: 700; color: #0A84FF; }
-  .det-count { font-size: 18px; font-weight: 800; color: #0a0a0a; min-width: 32px; text-align: right; }
-  .total-row { display: flex; justify-content: space-between; padding: 12px 0 0; margin-top: 8px; border-top: 2px solid #e5e5e5; }
-  .total-row span:first-child { font-size: 13px; font-weight: 700; color: #6b7280; }
-  .total-row span:last-child { font-size: 22px; font-weight: 900; color: #0a0a0a; }
-  .timing { font-size: 12px; color: #9ca3af; text-align: right; margin-top: 6px; }
-  input[type=file] { display: none; }
-  .file-name { font-size: 13px; color: #0A84FF; font-weight: 600; margin-top: 8px; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;background:#f5f5f7;color:#0a0a0a;min-height:100vh;padding:40px 24px}
+.wrap{max-width:920px;margin:0 auto}
+h1{font-size:26px;font-weight:800;letter-spacing:-.03em;margin-bottom:4px}
+.sub{color:#6b7280;font-size:14px;margin-bottom:28px}
+.badge{display:inline-flex;align-items:center;gap:6px;background:#dcfce7;color:#16a34a;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;margin-bottom:10px;letter-spacing:.08em;text-transform:uppercase}
+.drop{border:2px dashed #d1d5db;border-radius:16px;background:#fff;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:20px}
+.drop:hover,.drop.over{border-color:#0A84FF;background:#f0f7ff}
+.drop p{color:#6b7280;font-size:15px}
+.fname{font-size:13px;color:#0A84FF;font-weight:600;margin-top:8px;min-height:18px}
+.btn{background:#0A84FF;color:#fff;border:none;border-radius:12px;padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer;width:100%;transition:background .2s}
+.btn:hover{background:#0066CC}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+#status{margin-top:14px;font-size:14px;color:#6b7280;text-align:center;min-height:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:20px}
+.card h3{font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.result-img{width:100%;border-radius:10px;border:1px solid #e5e5e5}
+.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f3f4f6}
+.row:last-child{border-bottom:none}
+.rname{font-size:13px;color:#374151}
+.rconf{font-size:12px;font-weight:700;color:#0A84FF}
+.rcnt{font-size:18px;font-weight:800;min-width:32px;text-align:right}
+.total{display:flex;justify-content:space-between;padding:12px 0 0;margin-top:8px;border-top:2px solid #e5e5e5}
+.total span:first-child{font-size:13px;font-weight:700;color:#6b7280}
+.total span:last-child{font-size:22px;font-weight:900}
+.timing{font-size:12px;color:#9ca3af;text-align:right;margin-top:6px}
+.err{color:#dc2626;font-size:13px;text-align:center;margin-top:10px}
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="badge">● Model v2 — 95.1% mAP50</div>
+<div class="wrap">
+  <div class="badge">&#x25CF; Model v2 &mdash; 95.1% mAP50</div>
   <h1>Plan Analyser Test</h1>
-  <p class="sub">Upload a floor plan PDF to test the new YOLOv8L model before going live.</p>
-  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-    <p><strong>Drop a floor plan PDF here</strong></p>
-    <p style="margin-top:8px;font-size:13px">or click to browse</p>
-    <div class="file-name" id="fileName"></div>
+  <p class="sub">Upload a floor plan PDF to test the new model before going live.</p>
+  <div class="drop" id="drop">
+    <p><strong>Click to select a floor plan PDF</strong></p>
+    <p style="margin-top:8px;font-size:13px">or drag and drop here</p>
+    <div class="fname" id="fname"></div>
   </div>
-  <input type="file" id="fileInput" accept=".pdf">
-  <button class="btn" id="analyseBtn" onclick="analyse()" disabled>Analyse Plan</button>
+  <input type="file" id="fi" accept=".pdf" style="display:none">
+  <button class="btn" id="btn" disabled onclick="run()">Analyse Plan</button>
   <div id="status"></div>
-  <div class="results" id="results">
-    <div class="results-grid">
+  <div id="err" class="err"></div>
+  <div id="out" style="display:none">
+    <div class="grid">
       <div class="card">
         <h3>Detected Components</h3>
-        <div id="detectionList"></div>
-        <div class="total-row"><span>TOTAL</span><span id="totalCount">0</span></div>
-        <div class="timing" id="timingInfo"></div>
+        <div id="dlist"></div>
+        <div class="total"><span>TOTAL</span><span id="tot">0</span></div>
+        <div class="timing" id="tim"></div>
       </div>
       <div class="card">
         <h3>Annotated Plan</h3>
-        <img id="annotatedImg" class="result-img" src="" alt="Annotated plan">
+        <img id="img" class="result-img" src="" alt="annotated">
       </div>
     </div>
   </div>
 </div>
 <script>
-  let sessionId = null, uploadedPage = 1;
-  const dropZone = document.getElementById('dropZone');
-  const fileInput = document.getElementById('fileInput');
-  const btn = document.getElementById('analyseBtn');
-  const status = document.getElementById('status');
+var file = null;
+var drop = document.getElementById('drop');
+var fi = document.getElementById('fi');
+var btn = document.getElementById('btn');
+var status = document.getElementById('status');
+var err = document.getElementById('err');
 
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) {
-      document.getElementById('fileName').textContent = fileInput.files[0].name;
-      btn.disabled = false;
-    }
-  });
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    fileInput.files = e.dataTransfer.files;
-    if (fileInput.files[0]) { document.getElementById('fileName').textContent = fileInput.files[0].name; btn.disabled = false; }
-  });
+drop.addEventListener('click', function(){ fi.click(); });
+fi.addEventListener('change', function(){
+  if(fi.files && fi.files[0]){ setFile(fi.files[0]); }
+});
+drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', function(){ drop.classList.remove('over'); });
+drop.addEventListener('drop', function(e){
+  e.preventDefault(); drop.classList.remove('over');
+  var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) setFile(f);
+});
 
-  async function analyse() {
-    const file = fileInput.files[0];
-    if (!file) return;
-    btn.disabled = true;
-    status.textContent = 'Uploading PDF…';
-    document.getElementById('results').style.display = 'none';
-    const t0 = Date.now();
-    try {
-      // Upload
-      const fd = new FormData(); fd.append('file', file);
-      const upRes = await fetch('/upload', { method: 'POST', body: fd });
-      const upData = await upRes.json();
-      sessionId = upData.session_id;
-      uploadedPage = upData.suggested_page || 1;
-      status.textContent = ;
-      // Analyse
-      const afd = new FormData(); afd.append('session_id', sessionId); afd.append('page', uploadedPage);
-      const aRes = await fetch('/analyse-stored', { method: 'POST', body: afd });
-      const aData = await aRes.json();
-      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-      renderResults(aData, elapsed);
-    } catch(e) {
-      status.textContent = 'Error: ' + e.message;
-      btn.disabled = false;
-    }
-  }
+function setFile(f){
+  file = f;
+  document.getElementById('fname').textContent = f.name;
+  btn.disabled = false;
+  document.getElementById('out').style.display = 'none';
+  err.textContent = '';
+}
 
-  function renderResults(data, elapsed) {
+async function run(){
+  if(!file) return;
+  btn.disabled = true;
+  err.textContent = '';
+  document.getElementById('out').style.display = 'none';
+  var t0 = Date.now();
+  try {
+    status.textContent = 'Uploading PDF...';
+    var fd = new FormData(); fd.append('file', file);
+    var r1 = await fetch('/upload', {method:'POST', body:fd});
+    if(!r1.ok){ var e1 = await r1.json(); throw new Error(e1.detail || 'Upload failed'); }
+    var d1 = await r1.json();
+    var sid = d1.session_id;
+    var page = d1.suggested_page || 1;
+    status.textContent = 'Analysing page ' + page + '...';
+    var fd2 = new FormData(); fd2.append('session_id', sid); fd2.append('page', page);
+    var r2 = await fetch('/analyse-stored', {method:'POST', body:fd2});
+    if(!r2.ok){ var e2 = await r2.json(); throw new Error(e2.detail || 'Analysis failed'); }
+    var d2 = await r2.json();
+    var elapsed = ((Date.now()-t0)/1000).toFixed(1);
+    render(d2, elapsed);
     status.textContent = '';
-    btn.disabled = false;
-    document.getElementById('results').style.display = 'block';
-    // Image
-    const img = document.getElementById('annotatedImg');
-    img.src = 'data:image/jpeg;base64,' + data.annotated_image;
-    // Detections
-    const counts = {};
-    const confs = {};
-    (data.detections || []).forEach(d => {
-      counts[d.class_name] = (counts[d.class_name] || 0) + 1;
-      if (!confs[d.class_name]) confs[d.class_name] = [];
-      confs[d.class_name].push(d.confidence);
-    });
-    const list = document.getElementById('detectionList');
-    list.innerHTML = '';
-    let total = 0;
-    Object.keys(counts).sort().forEach(name => {
-      const avgConf = (confs[name].reduce((a,b)=>a+b,0)/confs[name].length*100).toFixed(0);
-      list.innerHTML += '<div class="detection-row"><span class="det-name">'+name+'</span><span class="det-conf">'+avgConf+'%</span><span class="det-count">×'+counts[name]+'</span></div>';
-      total += counts[name];
-    });
-    if (Object.keys(counts).length === 0) {
-      list.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:12px 0">No components detected on this page.</div>';
-    }
-    document.getElementById('totalCount').textContent = total;
-    document.getElementById('timingInfo').textContent = elapsed + 's total';
+  } catch(e){
+    err.textContent = 'Error: ' + e.message;
+    status.textContent = '';
   }
+  btn.disabled = false;
+}
+
+function render(data, elapsed){
+  document.getElementById('img').src = 'data:image/jpeg;base64,' + data.annotated_image;
+  var counts = {}; var confs = {};
+  (data.detections || []).forEach(function(d){
+    counts[d.class_name] = (counts[d.class_name]||0)+1;
+    if(!confs[d.class_name]) confs[d.class_name]=[];
+    confs[d.class_name].push(d.confidence);
+  });
+  var html = ''; var total = 0;
+  Object.keys(counts).sort().forEach(function(name){
+    var avg = (confs[name].reduce(function(a,b){return a+b},0)/confs[name].length*100).toFixed(0);
+    html += '<div class="row"><span class="rname">'+name+'</span><span class="rconf">'+avg+'%</span><span class="rcnt">x'+counts[name]+'</span></div>';
+    total += counts[name];
+  });
+  if(!html) html = '<div style="color:#9ca3af;font-size:13px;padding:12px 0">No components detected.</div>';
+  document.getElementById('dlist').innerHTML = html;
+  document.getElementById('tot').textContent = total;
+  document.getElementById('tim').textContent = elapsed + 's';
+  document.getElementById('out').style.display = 'block';
+}
 </script>
 </body>
 </html>"""
-
 @app.get("/")
 def root():
     return {"status": "ok"}
