@@ -10,6 +10,7 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from huggingface_hub import HfApi, CommitOperationAdd
 from pydantic import BaseModel
@@ -144,6 +145,157 @@ def push_to_dataset(session_id: str, image_bytes: bytes, label_text: str):
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
+@app.get("/test", response_class=HTMLResponse)
+def test_page():
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Model Test — ID Plan Analyser v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; background: #f5f5f7; color: #0a0a0a; min-height: 100vh; padding: 40px 24px; }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 4px; }
+  .sub { color: #6b7280; font-size: 14px; margin-bottom: 32px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; background: #dcfce7; color: #16a34a; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .drop-zone { border: 2px dashed #d1d5db; border-radius: 16px; background: white; padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 24px; }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: #0A84FF; background: #f0f7ff; }
+  .drop-zone p { color: #6b7280; font-size: 15px; }
+  .drop-zone strong { color: #0a0a0a; }
+  .btn { background: #0A84FF; color: white; border: none; border-radius: 12px; padding: 14px 28px; font-size: 15px; font-weight: 700; cursor: pointer; width: 100%; transition: background 0.2s; }
+  .btn:hover { background: #0066CC; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #status { margin-top: 16px; font-size: 14px; color: #6b7280; text-align: center; min-height: 20px; }
+  .results { display: none; margin-top: 32px; }
+  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card { background: white; border: 1px solid #e5e5e5; border-radius: 16px; padding: 20px; }
+  .card h3 { font-size: 13px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
+  .result-img { width: 100%; border-radius: 12px; border: 1px solid #e5e5e5; }
+  .detection-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+  .detection-row:last-child { border-bottom: none; }
+  .det-name { font-size: 13px; color: #374151; }
+  .det-conf { font-size: 12px; font-weight: 700; color: #0A84FF; }
+  .det-count { font-size: 18px; font-weight: 800; color: #0a0a0a; min-width: 32px; text-align: right; }
+  .total-row { display: flex; justify-content: space-between; padding: 12px 0 0; margin-top: 8px; border-top: 2px solid #e5e5e5; }
+  .total-row span:first-child { font-size: 13px; font-weight: 700; color: #6b7280; }
+  .total-row span:last-child { font-size: 22px; font-weight: 900; color: #0a0a0a; }
+  .timing { font-size: 12px; color: #9ca3af; text-align: right; margin-top: 6px; }
+  input[type=file] { display: none; }
+  .file-name { font-size: 13px; color: #0A84FF; font-weight: 600; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="badge">● Model v2 — 95.1% mAP50</div>
+  <h1>Plan Analyser Test</h1>
+  <p class="sub">Upload a floor plan PDF to test the new YOLOv8L model before going live.</p>
+  <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <p><strong>Drop a floor plan PDF here</strong></p>
+    <p style="margin-top:8px;font-size:13px">or click to browse</p>
+    <div class="file-name" id="fileName"></div>
+  </div>
+  <input type="file" id="fileInput" accept=".pdf">
+  <button class="btn" id="analyseBtn" onclick="analyse()" disabled>Analyse Plan</button>
+  <div id="status"></div>
+  <div class="results" id="results">
+    <div class="results-grid">
+      <div class="card">
+        <h3>Detected Components</h3>
+        <div id="detectionList"></div>
+        <div class="total-row"><span>TOTAL</span><span id="totalCount">0</span></div>
+        <div class="timing" id="timingInfo"></div>
+      </div>
+      <div class="card">
+        <h3>Annotated Plan</h3>
+        <img id="annotatedImg" class="result-img" src="" alt="Annotated plan">
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  let sessionId = null, uploadedPage = 1;
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const btn = document.getElementById('analyseBtn');
+  const status = document.getElementById('status');
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      document.getElementById('fileName').textContent = fileInput.files[0].name;
+      btn.disabled = false;
+    }
+  });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    fileInput.files = e.dataTransfer.files;
+    if (fileInput.files[0]) { document.getElementById('fileName').textContent = fileInput.files[0].name; btn.disabled = false; }
+  });
+
+  async function analyse() {
+    const file = fileInput.files[0];
+    if (!file) return;
+    btn.disabled = true;
+    status.textContent = 'Uploading PDF…';
+    document.getElementById('results').style.display = 'none';
+    const t0 = Date.now();
+    try {
+      // Upload
+      const fd = new FormData(); fd.append('file', file);
+      const upRes = await fetch('/upload', { method: 'POST', body: fd });
+      const upData = await upRes.json();
+      sessionId = upData.session_id;
+      uploadedPage = upData.suggested_page || 1;
+      status.textContent = ;
+      // Analyse
+      const afd = new FormData(); afd.append('session_id', sessionId); afd.append('page', uploadedPage);
+      const aRes = await fetch('/analyse-stored', { method: 'POST', body: afd });
+      const aData = await aRes.json();
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      renderResults(aData, elapsed);
+    } catch(e) {
+      status.textContent = 'Error: ' + e.message;
+      btn.disabled = false;
+    }
+  }
+
+  function renderResults(data, elapsed) {
+    status.textContent = '';
+    btn.disabled = false;
+    document.getElementById('results').style.display = 'block';
+    // Image
+    const img = document.getElementById('annotatedImg');
+    img.src = 'data:image/jpeg;base64,' + data.annotated_image;
+    // Detections
+    const counts = {};
+    const confs = {};
+    (data.detections || []).forEach(d => {
+      counts[d.class_name] = (counts[d.class_name] || 0) + 1;
+      if (!confs[d.class_name]) confs[d.class_name] = [];
+      confs[d.class_name].push(d.confidence);
+    });
+    const list = document.getElementById('detectionList');
+    list.innerHTML = '';
+    let total = 0;
+    Object.keys(counts).sort().forEach(name => {
+      const avgConf = (confs[name].reduce((a,b)=>a+b,0)/confs[name].length*100).toFixed(0);
+      list.innerHTML += '<div class="detection-row"><span class="det-name">'+name+'</span><span class="det-conf">'+avgConf+'%</span><span class="det-count">×'+counts[name]+'</span></div>';
+      total += counts[name];
+    });
+    if (Object.keys(counts).length === 0) {
+      list.innerHTML = '<div style="color:#9ca3af;font-size:13px;padding:12px 0">No components detected on this page.</div>';
+    }
+    document.getElementById('totalCount').textContent = total;
+    document.getElementById('timingInfo').textContent = elapsed + 's total';
+  }
+</script>
+</body>
+</html>"""
+
 @app.get("/")
 def root():
     return {"status": "ok"}
