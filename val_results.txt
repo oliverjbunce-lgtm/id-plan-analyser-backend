@@ -1,8 +1,8 @@
 Ultralytics 8.4.33 🚀 Python-3.12.3 torch-2.11.0+cu128 CUDA:0 (NVIDIA H100 80GB HBM3, 81079MiB)
 Model summary (fused): 113 layers, 43,615,860 parameters, 0 gradients, 164.9 GFLOPs
-[34m[1mval: [0mFast image access ✅ (ping: 0.0±0.0 ms, read: 4277.8±183.5 MB/s, size: 1947.8 KB)
+[34m[1mval: [0mFast image access ✅ (ping: 0.0±0.0 ms, read: 4320.0±380.1 MB/s, size: 1340.5 KB)
 
-                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 91/91 7.0it/s 13.0s
+                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 91/91 7.4it/s 12.3s
                    all       1444      19663      0.946      0.911      0.951      0.853
         L_prehung_door       1378       5991      0.895      0.865      0.935      0.881
         R_prehung_door       1382       6040      0.899      0.868      0.937      0.882
@@ -16,7 +16,7 @@ Wardrobe_sliding_four_doors         86        106      0.871      0.953      0.8
       Barn_wall_slider        202        269      0.996      0.903      0.962      0.841
      D_bi_folding_door         59         78       0.96      0.987      0.989      0.928
 Wardrobe_sliding_three_doors        191        302      0.963      0.881      0.935      0.819
-Speed: 0.9ms preprocess, 5.2ms inference, 0.0ms loss, 0.4ms postprocess per image
-Saving /workspace/runs/id-val/predictions.json...
-Results saved to [1m/workspace/runs/id-val[0m
+Speed: 1.1ms preprocess, 4.3ms inference, 0.0ms loss, 0.6ms postprocess per image
+Saving /workspace/runs/id-val2/predictions.json...
+Results saved to [1m/workspace/runs/id-val2[0m
 💡 Learn more at https://docs.ultralytics.com/modes/val
