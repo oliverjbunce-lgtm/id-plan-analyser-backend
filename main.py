@@ -55,26 +55,7 @@ model: Optional[YOLO] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model
-    model_path = Path(MODEL_PATH)
-    # Auto-download if file is missing or is a Git LFS pointer (< 200 bytes)
-    if not model_path.exists() or model_path.stat().st_size < 200:
-        hf_token = os.getenv("HF_TOKEN", "")
-        hf_model = os.getenv("HF_MODEL_FILE", "models/best_v2.pt")
-        hf_repo = os.getenv("HF_MODEL_REPO", "oliverbunce/id-door-detection-training")
-        if hf_token:
-            print(f"Downloading model from HuggingFace ({hf_repo}/{hf_model})…")
-            try:
-                from huggingface_hub import hf_hub_download
-                src = hf_hub_download(repo_id=hf_repo, filename=hf_model, repo_type="dataset", token=hf_token)
-                import shutil
-                model_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(src, str(model_path))
-                print("Model downloaded ✓")
-            except Exception as e:
-                print(f"⚠️  Model download failed: {e}")
-        else:
-            print("⚠️  HF_TOKEN not set — cannot download model")
-    if model_path.exists() and model_path.stat().st_size > 200:
+    if Path(MODEL_PATH).exists():
         print(f"Loading model from {MODEL_PATH}…")
         model = YOLO(MODEL_PATH)
         print("Model ready ✓")
